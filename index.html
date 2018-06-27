@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<style type="text/css">
+	html, body {
+		margin: 0;
+		padding: 0;
+	}
+	#main {
+		height: 100vh;
+		width: 100vw;
+		padding: 5px;
+		display: flex;
+		box-sizing: border-box;
+		flex-direction: column;
+	}
+	#main > div {
+		display: flex;
+	}
+	#top {
+		flex: 8;
+	}
+	#top > div {
+		white-space: pre-line;
+		height: 100%;
+		margin: 0px;
+		min-width: 250px;
+		font-size: 16px;
+		font-family: sans-serif;
+		line-height: 1.4;
+		border: 1px solid #ccc;
+	}
+	#print_out {
+		overflow: scroll;
+		flex: 2;
+		white-space: pre-line;
+		font-size: 16px;
+		font-family: sans-serif;
+		line-height: 1.4;	
+	}
+	#print_out > kbd {
+		font-family: inherit;
+		font-weight: bold;
+	}
+	#print_out > kbd::before {
+		content: '> ';
+		display: inline;
+	}
+	#battlefield {
+		display: flex;
+		flex: 4;
+		justify-content: center;
+		align-items: center;
+		white-space: pre-line;
+	}
+	#battlefield_canvas {
+		background-color: white;
+		border: 1px solid #ccc;
+		width: 100%;
+		height: 100%;
+	}
+	#infos {
+		flex: 1;
+	}
+	#rhythm {
+		flex: 1;
+		white-space: pre-line;
+		border: 1px solid #ccc;
+		font-size: 16px;
+		font-family: sans-serif;
+		line-height: 1.4;
+	}
+	#rhythm > div {
+		position: absolute;
+		display: inline-block;
+	}
+	#canvas {
+		position: absolute;
+		display: none;
+		border: 1px solid #000;
+		background-color: gray;
+		left: 35%;
+		top: 30%;
+	}
+	.input {
+		flex: 1;
+		white-space: pre-line;
+		border: 1px solid #ccc;
+		font-size: 16px;
+		font-family: sans-serif;
+		line-height: 2;
+		text-indent: 10px;
+	}
+	
+
+</style>
+<title> Ball Genocide Simulator </title>
+</head>
+<body>
+	<div id="main">
+		<div id="top">
+			<div id="print_out"></div>
+			<div id="battlefield">
+				<div id="battlefield_container">
+					<canvas id="battlefield_canvas" width=500 height=500></canvas>
+				</div>
+			</div>
+			<div id="infos"><div id="player_panel"></div><div id="enemy_panel"></div></div>
+		</div>
+		<div id="rhythm">
+			<canvas id="canvas" width=500 height=40></canvas>
+			<div id="tips">Damage Multipliers: <br> Red: 120%. Orange: 100%. Yellow: 50%.</div>
+		</div>
+		<div><input type="text" class="input"/></div>
+	</div>
+<script src='ITEM DICT.js' type='text/javascript'></script>
+<script src='ENEMY DICT.js' type='text/javascript'></script>
+<script src='player.js' type='text/javascript'></script>
+<script src='combat.js' type='text/javascript'></script>
+<script src='lootDrop.js' type='text/javascript'></script>
+<script src='cloner.js' type='text/javascript'></script>
+<script src='ATTACK DICT.js' type='text/javascript'></script>
+<script src='ENCOUNTER DICT.js' type='text/javascript'></script>
+<script type='text/javascript'>
+	'use strict';
+//global variables
+	var room = {};
+	var lines = [];
+	var max_lines = 500;
+	var command_history = [];
+	var command_history_index = 0;
+	var battle_progress = 0;
+	
+	const left = document.querySelector('#left');
+	const right = document.querySelector('#right');
+	const input = document.querySelector('input');
+	const rhythm = document.querySelector('#rhythm');
+	const canvas = document.querySelector('#canvas');
+	const print_out = document.querySelector('#print_out');
+	const ctx = canvas.getContext("2d");
+	
+	const bf_canvas = document.querySelector('#battlefield_canvas');
+	const bf_ctx = bf_canvas.getContext("2d");
+	
+	const cursor_width = 5;
+//global dictionaries
+	var MASTER = {
+		//lazy catch all global variable dictionary
+	}
+	var CONDITION = {
+		'current_room': null,
+		//'room_enemies': ['ball simulacrum']
+		//the dictionary of various states of the player that aren't RPG related
+	}
+	const ROOM_DICT = {
+		1: {
+			'name': 'abstraction',
+			'description': 'An infinite grid of black on brilliant white spreading infinitely in each direction. You feel safe here.',
+			'enemies': {},
+			'enemy_IDs': [1],
+			'enemy_encounters': {
+				1: [1]
+			}
+		}
+		//the dictionary of all rooms in the game
+	}
+	const SHORTCUT_DICT = {
+		65: 0,
+		83: 1,
+		68: 2,
+		70: 3
+		//a s d f -> 0 1 2 3
+	}
+	var KILL_COUNT = {
+	}
+	const DAMAGE_MULTIPLIERS = {
+		//damage multipliers for combat
+	}
+	const COMMAND_DICT = {
+		'spawn': null,
+		'createitem': null
+	}
+	const ALLOWED_STATS = ['attack','defense','health'];
+	const ENEMY_REFERENCE = {
+		//name to ID
+	}
+	for (var i in ENEMY_DICT) {
+		ENEMY_REFERENCE[ENEMY_DICT[i].name] = parseInt(i);
+	}
+	const DROP_DICT = {
+		//the global drop table
+	}
+	const ITEM_REFERENCE = {
+	}
+	for (var i in ITEM_DICT) {
+		ITEM_REFERENCE[ITEM_DICT[i].name] = parseInt(i);
+	}
+	console.log(ITEM_REFERENCE);
+	
+	const BATTLE_DICT = new function() {
+		this.yellow_width = 50;
+		this.orange_width = 30;
+		this.red_width = 20;
+		this.total_width = 2*this.yellow_width+2*this.orange_width+this.red_width;
+		this.yellow = 2*this.yellow_width/this.total_width;
+		this.orange = 2*this.orange_width/this.total_width+this.yellow;
+		this.red = this.red_width/this.total_width+this.orange;
+	}
+	const HELP_DICT = {
+		'attack': 'Attacks an enemy. \n Syntax, without parentheses: attack (enemy name) with (identifiers) ',
+		'inspect': 'Inspects an object. You can even inspect the room you are in with the room name or just "room." \n Syntax, without parentheses: inspect (object name)',
+		'inventory': 'Displays your inventory. \n Syntax: inventory',
+		'equip': 'Equips an item. \n Syntax, without parentheses: equip (item category) (item number from inventory)',
+		'help': 'Have you tried turning it off and on? \n Syntax, without parentheses: help (command)'
+		//dictionary of behaviors for the help command
+	}
+
+//unique item IDs
+	var ITEMS = {
+		0: {
+			'ID': 0,
+			'name': undefined,
+			'rank':0
+		}
+	}
+	
+	function createItem (item_id, rank = 0) {
+		item_id = parseInt(item_id);
+		rank = parseInt(rank);
+		 
+		if (item_id == undefined) {
+			print("Specify a real item.");
+			return;
+		}
+		else if (!(item_id in ITEM_DICT)) {
+			print("Invalid item ID.");
+			return;
+		}
+		//checks if we can create that item
+		
+		let UID = Object.keys(ITEMS).length
+		
+		ITEMS[UID] = {
+			'ID': item_id,
+			'name': ITEM_DICT[item_id].name,
+			'rank': rank
+		};
+		//adds a new item to the ITEMS list of unique items and assigns relevent values
+		return UID;
+	}
+
+	class MyLoop {
+		constructor(func, timer, temp_variables) {
+			this.timer = timer;
+			this.start = performance.now()
+			this.func = func
+			this.temp_variables = temp_variables
+			this.id = window.requestAnimationFrame(this.iter.bind(this));
+		}
+		iter(time) {
+			if (time - this.start >= this.timer) {
+				this.start = time
+				this.temp_variables = this.func(this.temp_variables);
+			}
+			this.id = window.requestAnimationFrame(this.iter.bind(this));
+		}
+		stop() {
+			window.cancelAnimationFrame(this.id);
+		}
+	}	
+	
+	function rhythmPulse(temp) {
+		var [speed,cursor_x,enemy_x,attack_thicc] = temp
+		input.focus();
+		input.value = '';
+		var thicc = attack_thicc;
+		
+		cursor_x += speed; //Move the cursor forward
+		
+		if (cursor_x + player.stats.combat_stats.cursor_width/2 > canvas.width) {
+			cursor_x = canvas.width - player.stats.combat_stats.cursor_width/2;
+		}
+		else if (cursor_x + player.stats.combat_stats.cursor_width/2 < 0) {
+			cursor_x = -1*player.stats.combat_stats.cursor_width/2;
+		} //If out of bounds, bounce the cursor back
+		if (Math.abs(cursor_x + player.stats.combat_stats.cursor_width/2 - (canvas.width)/2)>=(canvas.width)/2) {
+			speed *= -1;
+		} //If out of bounds, reflect the cursor back
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		
+		rect(enemy_x,0,BATTLE_DICT.yellow_width*thicc,canvas.height,"yellow");
+		rect(enemy_x+BATTLE_DICT.yellow_width*thicc,0,BATTLE_DICT.orange_width*thicc,canvas.height,"orange");
+		rect(enemy_x+(BATTLE_DICT.yellow_width+BATTLE_DICT.orange_width)*thicc,0,BATTLE_DICT.red_width*thicc,canvas.height,"red");
+		rect(enemy_x+(BATTLE_DICT.yellow_width+BATTLE_DICT.orange_width+BATTLE_DICT.red_width)*thicc,0,BATTLE_DICT.orange_width*thicc,canvas.height,"orange");
+		rect(enemy_x+(BATTLE_DICT.yellow_width+2*BATTLE_DICT.orange_width+BATTLE_DICT.red_width)*thicc,0,BATTLE_DICT.yellow_width*thicc,canvas.height,"yellow");
+		//Makes a sharp gradient for the enemy hitbox by just drawing a bunch of rectangles (widths defined the BATTLE_DICT and enemy thiccness)
+		
+		rect(cursor_x,0,player.stats.combat_stats.cursor_width,canvas.height,"#1BFF00");
+		//Draws the cursor
+		return [speed, cursor_x, enemy_x, attack_thicc];
+	}
+
+//controls
+	function spawnEnemies(ID, number) {
+		//creates new enemies and adds them to the room IDs
+		number = parseInt(number)
+		if (room.enemies[ID] !== undefined) { room.enemies[ID] = parseInt(room.enemies[ID]) }
+		else {room.enemies[ID] = 0}
+		room.enemies[ID] += number;
+		print(number+" "+ENEMY_DICT[ID].name+"s have entered the room.")
+		if (room.enemy_IDs.indexOf(ID) == -1) {
+			console.log(ID+" was not in the room.");
+			room.enemy_IDs.push(ID);
+		}
+		var i
+	}
+	
+	function populateRoom() {
+		//spawns all the enemies that should be in the room
+	}
+	
+	function enterRoom() {
+		Object.assign(room,ROOM_DICT[CONDITION.current_room]);
+		print('You are currently in '+capitalizeFirstLetter(room.name)+'.');
+	}
+	
+	function action (text) {
+		let room = ROOM_DICT[CONDITION.current_room]
+		print('\n<kbd>'+escapeHTML(text)+'</kbd>', true);
+		command_history.push(text);
+		command_history_index = command_history.length;		
+		//bumps the command history up one
+		let noun = '';
+		let splitText = text.split(' ');
+		let verb = splitText[0]; //The main action word
+		splitText = splitText.slice(1);	//The words split up
+		let fusedText = splitText.join(" "); //the rest of the phrase, peeled off from the action word
+		
+		if (!(verb in HELP_DICT || verb in COMMAND_DICT)) {
+			print("I don't quite understand.")
+			return
+		}
+		
+		if (verb == 'help') {
+			noun = splitText.join(' ');
+			if (noun in HELP_DICT) {
+				print(HELP_DICT[noun]);
+			}
+			else if (noun == "") {
+				print("Please define a command.");
+			}
+			else {
+				print("That is not a command!");
+			}
+			return
+		}
+		
+		if (verb == 'spawn') {
+			spawnEnemies(parseInt(splitText[0]),parseInt(splitText[1]))
+			return
+		}
+		
+		if (verb == 'attack') {
+			let pos = splitText.indexOf('with');
+			if (pos == -1) { pos = splitText.length; };
+			let name = splitText.slice(0,pos).join(' ');
+			let weapon = splitText.slice(pos+1).join(' ');
+			if (name in ENEMY_REFERENCE) { 
+				var ID = ENEMY_REFERENCE[name]; 
+			}
+			else {
+				print("That isn't around here.");
+				return;
+			};
+			if (ID in room.enemies) {
+				new Combat(room.enemy_encounters[ID][Math.floor(Math.random()*room.enemy_encounters[ID].length)]);
+			}
+			else {
+				print("That isn't around here.")
+			};
+			return
+		}
+		
+		if (verb == 'createitem') {
+			createItem(splitText[0],splitText[1],splitText[2]);
+			print('Created item with:'+splitText[0]+' '+splitText[1]+' '+splitText[2])
+			return
+		}
+		
+		if (verb == 'inspect') {
+			if (ENEMY_REFERENCE[fusedText] in room.enemies) {
+				let enemy = ENEMY_DICT[ENEMY_REFERENCE[fusedText]];
+				print(enemy.description+`
+				Health: `+enemy.health +` 
+				Attack: `+enemy.attack +` 
+				Defense: `+enemy.defense +` 
+				Experience: `+enemy.experience);
+			//refers to the enemy dict for the enemy description
+			}
+			else if (fusedText == 'room' || fusedText == room.name) {
+				print(room.description);
+			//reads the room description
+			}
+			else if (ITEM_REFERENCE[fusedText] in ITEM_DICT) {
+				print(ITEM_DICT[ITEM_REFERENCE[fusedText]].description);
+			//refers to the item dict for the item description
+			}
+			else {
+				print('You don\'t see that around here.');
+			}
+			return
+		}
+		
+		if (verb == 'inventory') {
+			player.viewInventory();
+			return
+		}
+		
+		if (verb == 'equip') {
+			player.equip(splitText[0], parseInt(splitText[1]));
+			return
+		}
+		
+		print('End o the line')
+	}
+	
+	input.addEventListener('keydown', function(e) {
+		if (e.keyCode == 13 /* return */ && input.value.trim()) {
+			if (battle_progress == 0) {
+				action(input.value.trim().toLowerCase());
+			};
+			print_out.scrollTop = Math.pow(2,30);
+			input.value = '';
+			//does the action if text exists
+		}
+		else if (e.keyCode == 13) {
+			print_out.scrollTop = Math.pow(2,30);
+			input.value = '';
+			//just clears the input if it's whitespace
+		}
+		
+		//command history
+		if (e.keyCode == 38 /*up*/) {
+			if (event.altKey) {
+				if (command_history_index > 0) {
+					command_history_index -= 1;
+				};
+				if (command_history[command_history_index] !== undefined) {
+					input.value = command_history[command_history_index];
+				};
+				//gets the previous command if you aren't at the first command and the previous command exists
+				return
+			}
+			print_out.scrollTop -= 44;
+			//scrolls up a bit
+		}
+		if (e.keyCode == 40 /*down*/) {
+			if (event.altKey) {
+				if (command_history_index < command_history.length - 1) {
+					command_history_index += 1;
+				};
+				if (command_history[command_history_index] !== undefined) {
+					input.value = command_history[command_history_index];
+				};
+				//gets the next command if you aren't at the last command and the next command exists
+				return
+			}
+			print_out.scrollTop += 44;
+			//scrolls down a bit
+		}
+	})
+//housekeeping stuff
+	function rect(x, y, width, height, color, context = ctx) {
+		context.fillStyle = color;
+		context.fillRect(x, y, width, height);
+	}
+	function copyObject(object) {
+		/*
+		Recursively copies an object to a new object.
+		*/
+		var i,j;
+		var new_object = {};
+		for (i in object) {
+			if (typeof(object[i]) == "object") {
+				new_object[i] = copyObject(object[i]);
+			}
+			new_object[i] = object[i];
+		};
+		return new_object;
+	}
+	function clearCanvas() {
+		ctx.clearRect(0,0,canvas.width,canvas.height);
+	}
+	function print(text, raw = false) {
+		lines.push(raw ? text : escapeHTML(text));
+		while(lines.length > max_lines) {
+			lines.shift();
+		}
+		//clears out useless lines from memory
+		print_out.innerHTML = lines.join('\n');
+		//puts all the text in and skips a line
+		print_out.scrollTop = Math.pow(2, 30);
+		//push the scrollbar practically all the way down
+	}
+
+	function capitalizeFirstLetter (string) {
+		return string.charAt(0).toUpperCase() + string.slice(1);
+		//capitalizes the first letter of a string
+	}
+	
+	function escapeHTML (string) {
+		return String(string).replace(/[&<>"'`=\/]/g, s => entityMap[s]);
+		//converts any text given to HTML equivalents to avoid injection
+	}
+	
+	function isArrayInArray (arr, item){
+	  var item_as_string = JSON.stringify(item);
+
+	  var contains = arr.some(function(ele){
+	    return JSON.stringify(ele) === item_as_string;
+	  });
+	  return contains;
+	}
+	
+	function whereArrayInArray (arr, item) {
+		var item_as_string = JSON.stringify(item);
+		
+		for (var i = 0; i < arr.length; i++) {
+			if (JSON.stringify(arr[i]) === item_as_string) {
+				return i;
+			}
+		};
+		
+		var i = -1;		
+		return i;
+	}
+
+	function addArrays (arr1, arr2) {
+		//adds two arrays of numbers
+		var temp_arr = [];
+
+		for (var i = 0; i < arr1.length; i++) {
+			temp_arr[i] = arr1[i] + arr2[i];
+		};
+
+		return temp_arr;
+	}
+	
+	const entityMap = {
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		"'": '&#39;',
+		'/': '&#x2F;',
+		'`': '&#x60;',
+		'=': '&#x3D;'		
+	};
+
+	var player = new Player();	
+	(function main () {
+		input.focus();
+		print('Your commands are:<b> attack, inspect, inventory, equip, help</b>. Capitalization does not matter, bold words indicate importance. Use alt plus up or down to scroll the history of commands, or just up and down to scroll. Make sure to focus the input box.', true);
+		CONDITION.current_room = 1;
+		enterRoom();
+		player.updatePlayerPanel();
+		print('');
+		spawnEnemies(1, 5);
+		//Drops the player in abstraction and renders the info bar
+	})();
+</script>
+</body>
+</html>

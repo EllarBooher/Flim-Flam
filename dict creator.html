@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<body>
+<style type="text/css">
+	#item {
+    	display: block;
+    }
+    .items {
+    	display: inline-block;
+		width: 400px;
+    }
+	.items > input {
+		width: 50vw;
+	}
+	#enemy {
+		display: block;
+	}
+	.enemies {
+		display: inline-block;
+		width: 400px;
+	}
+	.enemies > input {
+		width: 50vw;
+	}
+</style>
+
+<form id="dict_type" action="" onchange="myFunction()">
+  <input type="radio" name="ass" value="enemy" checked="checked"> Enemy <br>
+  <input type="radio" name="ass" value="item"> Item
+</form>
+<div id="enemy">
+	<div class="enemies">
+    ID: <br>
+    Name: <br>
+	Proper Name: <br>
+	Plural Name: <br>
+    Description: <br>
+    Attack: <br>
+    Defense: <br>
+    Health: <br>
+    Drop Chances: <br>
+    Drop Tiers: <br>
+    Unique Chances: <br>
+    Uniques: <br>
+	Experience: <br>
+	Thicc:
+    </div>
+    <div id="enemies" class="enemies">
+	<input type="text" name="ID">
+	<input type="text" name="name">
+	<input type="text" name="proper_name">
+	<input type="text" name="plural_name">
+	<input type="text" name="description">
+	<input type="text" name="attack">
+	<input type="text" name="defense">
+	<input type="text" name="health">
+	<input type="text" name="drop_chances">	
+	<input type="text" name="drop_tiers">	
+	<input type="text" name="unique_chances">	
+	<input type="text" name="uniques">	
+	<input type="text" name="experience">
+	<input type="text" name="thicc">
+    </div>	
+</div>
+<div id="item">
+	<div class="items">
+    ID: <br>
+    Name: <br>
+	Proper Name: <br>
+    Description: <br>
+    Attack: <br>
+    Defense: <br>
+    Health: <br>
+    Category: <br>
+    </div>
+    <div id="items" class="items">
+	<input type="text" name="ID">
+	<input type="text" name="name">
+	<input type="text" name="proper_name">
+	<input type="text" name="description">
+	<input type="text" name="attack">
+	<input type="text" name="defense">
+	<input type="text" name="health">
+	<input type="text" name="category">	
+    </div>
+</div>
+<input type="button" id="button" value="Create" onclick="createDict()">
+<p id="demo"></p>
+<p>When you hit create, the dictionary entry is copied to your clipboard.</p>
+<textarea class="js-copyarea" display="block"></textarea>
+
+<script>
+function myFunction() {
+    var x = document.getElementById("dict_type").ass.value;
+	var enemy = document.getElementById("enemy");
+	var item = document.getElementById("item");
+	var demo = document.getElementById("demo");
+	
+    if (x == "enemy") {
+    	enemy.style.display = "block";
+		item.style.display = "none";
+		demo.innerHTML = "Enemy selected.";
+    }
+    else {
+		item.style.display = "block";
+		enemy.style.display = "none";
+		demo.innerHTML = "Item selected.";
+    };
+}
+function createDict() {
+	var enemy = document.getElementById("enemy");
+	var item = document.getElementById("item");
+	var text = "";
+	var values = [];
+	var copy_area = document.querySelector('.js-copyarea');
+	
+	if (enemy.style.display == "block") {
+		var enemies = document.getElementById("enemies").getElementsByTagName("input");
+		for (i in enemies) {
+			if (enemies[i].type == "text") {
+				console.log(enemies[i].value)
+				values[i] = enemies[i].value
+			}
+		}
+		text = `
+`+values[0]+`: {
+	'ID': `+values[0]+`,
+	'name': "`+values[1]+`",
+	'proper_name': "`+values[2]+`",
+	'plural_name': "`+values[3]+`",
+	'description': "`+values[4]+`",
+	'stats': {
+		'attack': `+values[5]+`,
+		'defense': `+values[6]+`,
+		'health': `+values[7]+`,
+	},
+	'drops': {
+		'drop_chances': [`+values[8].split(" ")+`], 
+		'drop_tiers': [`+values[9].split(" ")+`], 
+		'unique_chances': [`+values[10].split(" ")+`],
+		'uniques': [`+values[11].split(" ")+`], 
+	},
+	'experience': `+values[12]+`,
+	'thicc': `+values[13]+`
+},
+		`
+		copy_area.innerHTML = text;
+		copy_area.focus();
+		copy_area.select();
+		document.execCommand('copy');
+	}
+	else {
+		var items = document.getElementById("items").getElementsByTagName("input");
+		for (i in items) {
+			if (items[i].type == "text") {
+				console.log(items[i].value)
+				values[i] = items[i].value
+			}
+		}
+		text = `
+`+values[0]+`: {
+	'ID': `+values[0]+`,
+	'name': "`+values[1]+`",
+	'proper_name': "`+values[2]+`",
+	'description': "`+values[3]+`",
+	'stats': {
+		'attack': `+values[4]+`,
+		'defense': `+values[5]+`,
+		'health': `+values[6]+`,
+	},
+	'category': `+values[7]+`
+},`
+		copy_area.innerHTML = text;
+		copy_area.focus();
+		copy_area.select();
+		document.execCommand('copy');
+	};
+}
+myFunction();
+</script>
+
+</body>
+</html>
+
