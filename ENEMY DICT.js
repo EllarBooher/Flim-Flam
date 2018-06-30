@@ -10,8 +10,8 @@ const ENEMY_DICT = {
 			'defense': 1,
 			'health': 10,
 		},
-		'distance_threshholds': [1,4,8],
-		'distance_attacks': [4,2,1],
+		'distance_threshholds': [1,3,5],
+		'distance_attacks': [1,.5,.25],
 		'steps': [[-1,0],[1,0],[0,1],[0,-1]],
 		'drops': {
 			'drop_chances': [.25,.50,.75,.80], //Armor, Staff, Ring, Unique (cumulative chance)

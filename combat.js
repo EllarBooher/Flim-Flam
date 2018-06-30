@@ -149,18 +149,24 @@ class Combat {
 			}
 			
 		}; //If the player didn't miss, they hit. The weighted distance is a fraction of the enemy's width. Only one side is considered, due to symmetry.
-		var temp_enemy = this.enemy_instances[this.pingClosestEnemy(this.enemy_locations, this.player_location)];
-		var enemy_damage = temp_enemy.stats.attack - player.stats.combat_stats.defense;
-		if (enemy_damage < 0) {enemy_damage = 0}; //calculates the damage the enemy is gonna deal to the player
-		player.stats.delta_stats.health -= enemy_damage;
-		print("The "+temp_enemy.name+" hits you for "+Number.parseFloat(enemy_damage).toFixed(2)+"."); //enemies always hit first
+		
+		var [temp_enemy_damages, temp_enemy_IDs] = this.enemyAttackHandler(this.pingDistances(this.player_location, this.enemy_locations),this.enemy_IDs,this.enemy_instances);
+		var enemy_damage = 0;
+		for (var i = 0; i < temp_enemy_damages.length; i++) {
+			let temp_damage = temp_enemy_damages[i] - player.stats.combat_stats.defense;
+			if (temp_damage < 0) {
+				temp_damage = 0;
+			};
+			enemy_damage += temp_damage;
+			print("The "+this.enemy_instances[this.enemy_IDs[i]].name+" "+(temp_enemy_IDs[i]+1)+" hits you for "+parseFloat(temp_damage).toFixed(2)+" damage.");
+		};
+		print("You are hit for a total of "+Number.parseFloat(enemy_damage).toFixed(2)+" damage.");
 
 		var total_multiplier = rhythm_multiplier*this.attack_multiplier //rhythm and attack multiplier
 		var player_damage = total_multiplier*player.stats.combat_stats.attack //calculates the damage the player will deal to the enemy
 		
 		if (player_damage < 0) {player_damage = 0};
 
-		console.log(this.enemy_damage_multipliers);
 		for (var i = 0; i < this.enemy_damage_multipliers.length; i++) {
 			if (!(this.enemy_damage_multipliers[i] == 0)) {
 				var temp_instance = this.enemy_instances[this.enemy_IDs[i]];
@@ -193,6 +199,7 @@ class Combat {
 			return;
 		}; //ends combat if the enemy is out of health.
 		*/
+		this.player_location = this.drawMovementGhost(this.player_location, this.attack_movement_multiplier, this.attack_choose_direction, this.attack_center, false);
 		this.enemySteps(); //has all the enemies move
 		player.updatePlayerPanel(true);
 		this.updateEnemyPanel(this.enemy_instances, this.enemy_healths, this.enemy_IDs);
@@ -203,7 +210,7 @@ class Combat {
 		/*
 		returns an array where each position corresponds with the damage multiplier for that enemy.
 		*/
-		let n = attack_pattern.length;
+		var n = attack_pattern.length;
 		var temp_multipliers = [];
 		var temp_tuple;
 		for (var i = 0; i < enemy_locations.length; i++) {
@@ -219,7 +226,47 @@ class Combat {
 		};			
 		return temp_multipliers;
 	}
+
+	pingDistances(player_location, enemy_locations) {
+		/*
+		returns an array where each position corresponds with the distance from that enemy.
+		*/
+		var temp_distances = [];
+		for (var i = 0; i < enemy_locations.length; i++) {
+
+			let a = enemy_locations[i][0] - player_location[0];
+			let b = enemy_locations[i][1] - player_location[1];
+			let c = Math.abs(a)+Math.abs(b);
+
+			temp_distances.push(c);
+		};
+
+		return temp_distances;
+	}
 	
+	enemyAttackHandler(attack_distances, enemy_IDs, enemy_instances) {
+		/*
+		Returns the damage from each enemy based upon their distance.
+		*/
+		var temp_damages = [];
+		var temp_IDs = []; //stores the (in battle) id of the enemy associated with that damage
+
+		for (var i = 0; i < attack_distances.length; i++) {
+			var temp_distance = attack_distances[i];
+			var temp_distances = enemy_instances[enemy_IDs[i]].distance_threshholds; //the distances required for each attack
+			var temp_attacks = enemy_instances[enemy_IDs[i]].distance_attacks; //the damage value up to each distance
+			for (var j = 0; j < temp_distances.length; j++) {
+				if (temp_distance <= temp_distances[j]) {
+					temp_IDs.push(i);
+					temp_damages.push(temp_attacks[j]);
+					break
+				};
+			};
+		};
+		console.log("temp_damages: "+temp_damages)
+		return [temp_damages, temp_IDs];
+	}
+
 	pingClosestEnemy(enemy_locations, player_location) {
 		/*
 		Returns the enemy ID of the closest enemy.
@@ -247,7 +294,6 @@ class Combat {
 
 		for (var i = 0; i < this.enemy_locations.length; i++) {
 			temp_steps = this.enemy_instances[this.enemy_IDs[i]].steps;
-			console.log(this.enemy_locations)
 			temp_step = this.chooseStep(this.enemy_locations[i], temp_steps, this.enemy_locations);
 			temp_tuple = addArrays(this.enemy_locations[i], temp_step);
 			this.enemy_locations[i] = temp_tuple;
@@ -262,7 +308,9 @@ class Combat {
 		this.attack_range = ATTACK_DICT[attack_ID].range; //the max range
 		this.attack_center = this.initializeAttackCenter(this.player_location.slice(0), this.attack_range);
 		this.temp_pattern = ATTACK_DICT[attack_ID].pattern;
-		this.drawController(this.player_location,this.enemy_locations,true,this.temp_pattern,this.attack_center,this.attack_range);
+		this.attack_movement_multiplier = ATTACK_DICT[attack_ID].movement_multiplier;
+		this.attack_choose_direction = ATTACK_DICT[attack_ID].choose_direction;
+		this.drawController(this.player_location,this.enemy_locations,true,this.temp_pattern,this.attack_center,this.attack_range,this.attack_movement_multiplier,this.attack_choose_direction);
 		var self = this;
 		this.temp_keydown = function(e) {
 			input.value = '';
@@ -278,7 +326,7 @@ class Combat {
 			else if (e.keyCode == 70 /* F */) {
 				print("Good job, you just tried to flip, ya goober. That's too hard for me to program right now.");
 			};
-			self.drawController(self.player_location,self.enemy_locations,true,self.temp_pattern,self.attack_center,self.attack_range);
+			self.drawController(self.player_location,self.enemy_locations,true,self.temp_pattern,self.attack_center,self.attack_range,self.attack_movement_multiplier,self.attack_choose_direction);
 		};
 		print("Arrow keys to point, R to rotate, F to flip, space to complete.");
 		input.addEventListener("keydown", this.temp_keydown);
@@ -358,7 +406,7 @@ class Combat {
 		return temp_matrix				
 	}
 
-	drawController(player_location, enemy_locations, include_attack = false, temp_pattern, attack_center, attack_range, include_enemies = true, include_player = true) {
+	drawController(player_location, enemy_locations, include_attack = false, temp_pattern, attack_center, attack_range, attack_movement_multiplier, attack_choose_direction, include_enemies = true, include_player = true) {
 		/*
 		Handles drawing all the stuff for the tactical field.
 		*/
@@ -368,31 +416,32 @@ class Combat {
 		if (include_attack) {
 			this.drawAttackRange(player_location, attack_range, this.checkDistance);
 		};
-		this.drawCharacters(include_enemies, include_player);
+		this.drawCharacters(enemy_locations, player_location, include_enemies, include_player);
 		this.drawGrid();
 		if (include_attack) {
 			this.drawAttack(temp_pattern, attack_center);
+			this.drawMovementGhost(player_location, attack_movement_multiplier, attack_choose_direction, attack_center);
 		};
 		this.drawLabels(enemy_locations);
 	}
 	
-	drawCharacters(include_enemies = true, include_player = true) {
+	drawCharacters(enemy_locations = [], player_location = [], include_enemies = true, include_player = true) {
 		/*
 		Draws all the enemies based on how many are visible. Also draws the player.
 		*/
 		
 		//Now, we draw the enemies
 		if (include_enemies) {
-			for (var i in this.enemy_locations) {
-				let temp_tuple = this.enemy_locations[i];
+			for (var i in enemy_locations) {
+				let temp_tuple = enemy_locations[i];
 				rect(temp_tuple[0]*50,temp_tuple[1]*50,50,50,'red',bf_ctx);
 			}; 	//Draws a red square for each enemy
 		};
 		//Now, we draw the player
-		
 		if (include_player) {
-			rect(this.player_location[0]*50,this.player_location[1]*50,50,50,'green',bf_ctx);
+			rect(player_location[0]*50,player_location[1]*50,50,50,'green',bf_ctx);
 		}; //player is a green square
+
 	}
 
 	drawGrid() {
@@ -432,6 +481,47 @@ class Combat {
 
 	}
 	
+	drawMovementGhost(player_location, movement_multiplier, choose_direction, attack_center, draw = true) {
+		/*
+		Draws a ghost to indicate to the player where they'll go after an attack.
+		*/
+		var temp_tuple = player_location.slice(0); //the location of the ghost, initializes as the player for safety
+		var [temp_x , temp_y] = [(attack_center[0]-player_location[0]),(attack_center[1]-player_location[1])];
+		var temp_x_parity = 1;
+		var temp_y_parity = 1;
+		if (choose_direction) {
+			temp_x_parity *= -1;
+			temp_y_parity *= -1; //makes the player move away instead of towards the attack;
+		};
+		if (temp_x < 0) {
+			temp_x_parity *= -1;
+		};
+		if (temp_y < 0) {
+			temp_y_parity *= -1;
+		}; //makes sure Math.round always rounds outward
+
+		temp_tuple[0] += Math.round(Math.abs(temp_x*movement_multiplier))*temp_x_parity;
+		temp_tuple[1] += Math.round(Math.abs(temp_y*movement_multiplier))*temp_y_parity;
+
+		if (temp_tuple[0] < 0) {
+			temp_tuple[0] = 0;
+		}
+		if (temp_tuple[0] > bf_canvas.width - 50) {
+			temp_tuple[0] = bf_canvas.width - 50;
+		}
+		if (temp_tuple[1] < 0) {
+			temp_tuple[1] = 0;
+		}
+		if (temp_tuple[1] > bf_canvas.height) {
+			temp_tuple[1] = bf_canvas.height - 50;			
+		} //snaps back inbounds
+
+		if (draw) {
+			rect(temp_tuple[0]*50+10,temp_tuple[1]*50+10,30,30,"lightgreen",bf_ctx);
+		};
+		return temp_tuple;
+	}
+
 	drawAttackRange(player_location, attack_range, checkDistance) {
 		/*
 		Draws the background indicators to show the range of the players attack.
@@ -606,7 +696,7 @@ class Combat {
 				temp_text += '<b><u>'+enemy_instances[i].proper_name+'</u></b> \n'+enemy_instances[i].description+'\n <b><u> Healths: </u></b>\n';
 				for (var j = 0; j < enemy_healths.length; j++) {
 					if (enemy_IDs[j] == i) {
-						temp_text += j+1+') '+enemy_healths[j]+'\n';
+						temp_text += j+1+') '+parseFloat(enemy_healths[j]).toFixed(2)+'\n';
 					};
 				};
 				temp_text += '<b><u> Stats: </u></b> \n'
