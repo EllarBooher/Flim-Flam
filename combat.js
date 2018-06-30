@@ -89,7 +89,7 @@ class Combat {
 		player.updateCombatStats();
 		player.updatePlayerPanel(true); //makes sure the player is all updated
 		this.updateEnemyPanel(this.enemy_instances, this.enemy_healths, this.enemy_IDs); //adds the enemy to the drawing panel
-		this.drawController(this.enemy_locations, false); //draws without enemies
+		this.drawController(this.player_location, this.enemy_locations, false); //draws without enemies
 		
 	}
 	
@@ -167,10 +167,10 @@ class Combat {
 				var temp_player_damage = player_damage * this.enemy_damage_multipliers[i];
 				var temp_damage_calc = temp_player_damage - temp_instance.stats.defense; 
 				if (temp_damage_calc <= 0) {
-					print("Your attack didn't scratch "+temp_instance.name+" "+i+1+".");
+					print("Your attack didn't scratch "+temp_instance.name+" "+(parseInt(i)+1)+".");
 				}
 				else {
-					print("You dealt "+temp_damage_calc+" to "+temp_instance.name+" "+i+1+" after a "+total_multiplier*this.enemy_damage_multipliers[i]+" times multiplier.");
+					print("You dealt "+temp_damage_calc+" damage to "+temp_instance.name+" "+(i+1)+" after a "+total_multiplier*this.enemy_damage_multipliers[i]+" times multiplier.");
 					this.enemy_healths[i] -= temp_damage_calc;
 				};
 			};
@@ -259,15 +259,15 @@ class Combat {
 		Parses the player's attack for positioning, and finalizes it.
 		*/
 		this.parse_ready = false; //stops the player from trying to parse any more attacks.
-		this.attack_center = this.player_location.slice(0); //slice so we just copy the location
 		this.attack_range = ATTACK_DICT[attack_ID].range; //the max range
+		this.attack_center = this.initializeAttackCenter(this.player_location.slice(0), this.attack_range);
 		this.temp_pattern = ATTACK_DICT[attack_ID].pattern;
-		this.drawController(this.enemy_locations,true,this.temp_pattern,this.attack_center);
+		this.drawController(this.player_location,this.enemy_locations,true,this.temp_pattern,this.attack_center,this.attack_range);
 		var self = this;
 		this.temp_keydown = function(e) {
 			input.value = '';
 			if ([38,37,40,39].indexOf(e.keyCode) > -1 /*arrow keys*/) {
-				self.attack_center = self.moveAttack([38,37,40,39].indexOf(e.keyCode), self.player_location, self.attack_range, self.attack_center); //grabs the attack location info
+				self.attack_center = self.moveAttack([38,37,40,39].indexOf(e.keyCode), self.player_location, self.attack_range, self.attack_center, self.checkDistance); //grabs the attack location info
 			}
 			else if (e.keyCode == 32 /* space */) {
 				self.attackFinalize(self.attack_ID);
@@ -278,7 +278,7 @@ class Combat {
 			else if (e.keyCode == 70 /* F */) {
 				print("Good job, you just tried to flip, ya goober. That's too hard for me to program right now.");
 			};
-			self.drawController(self.enemy_locations,true,self.temp_pattern,self.attack_center);
+			self.drawController(self.player_location,self.enemy_locations,true,self.temp_pattern,self.attack_center,self.attack_range);
 		};
 		print("Arrow keys to point, R to rotate, F to flip, space to complete.");
 		input.addEventListener("keydown", this.temp_keydown);
@@ -297,23 +297,24 @@ class Combat {
 		
 	}
 	
-	moveAttack(direction, player_location, attack_range, attack_center) {
+	moveAttack(direction, player_location, attack_range, attack_center, checkDistance, require_inbounds = false) {
 		/*
 		Moves the pattern according to the inputed direction. Called by attackParse, always available.
 		For direction, 1 left, 0 up, 3 right, 2 down. (number of rotations).
+		Inbounds forces the attack to only move inside the playing field.
 		*/
 		var temp_attack_center = attack_center.slice(0);
 
-		if (temp_attack_center[0] > 0 && direction == 1 && this.checkDistance(player_location, attack_range, [temp_attack_center[0]-=1,temp_attack_center[1]])) {
+		if ((!(require_inbounds) || temp_attack_center[0] > 0) && direction == 1 && checkDistance(player_location, attack_range, [temp_attack_center[0]-=1,temp_attack_center[1]])) {
 			attack_center[0] -= 1; //left
 		}
-		else if (temp_attack_center[1] > 0 && direction == 0 && this.checkDistance(player_location, attack_range, [temp_attack_center[0],temp_attack_center[1]-=1])) {
+		else if ((!(require_inbounds) || temp_attack_center[1] > 0) && direction == 0 && checkDistance(player_location, attack_range, [temp_attack_center[0],temp_attack_center[1]-=1])) {
 			attack_center[1] -= 1; //up
 		}
-		else if (temp_attack_center[0] < bf_canvas.width/50 && direction == 3 && this.checkDistance(player_location, attack_range, [temp_attack_center[0]+=1,temp_attack_center[1]])) {
+		else if ((!(require_inbounds) || temp_attack_center[0] < bf_canvas.width/50) && direction == 3 && checkDistance(player_location, attack_range, [temp_attack_center[0]+=1,temp_attack_center[1]])) {
 			attack_center[0] += 1; //right
 		}
-		else if (temp_attack_center[1] < bf_canvas.height/50 && direction == 2 && this.checkDistance(player_location, attack_range, [temp_attack_center[0],temp_attack_center[1]+=1])) {
+		else if ((!(require_inbounds) || temp_attack_center[1] < bf_canvas.height/50) && direction == 2 && checkDistance(player_location, attack_range, [temp_attack_center[0],temp_attack_center[1]+=1])) {
 			attack_center[1] += 1; //down
 		}; //shifts the attack the right direction
 		
@@ -322,19 +323,29 @@ class Combat {
 	
 	checkDistance(player_location, attack_range, attack_center) {
 		/*
-		Makes sure moving an attack doesn't put it out of bounds. Uses distance formula.
+		Makes sure moving an attack doesn't put it out of bounds.
 		*/
 		var a = attack_center[0] - player_location[0];
 		var b = attack_center[1] - player_location[1];
-		var c = attack_range[1];
-		return (a*a + b*b <= c*c);
+		var c1 = attack_range[0];
+		var c2 = attack_range[1];
+		var temp_sum = Math.abs(a)+Math.abs(b);
+		return (c1 <= temp_sum && temp_sum <= c2);
+	}
+
+	initializeAttackCenter(player_location, attack_range) {
+		/*
+		Initializes the attack's central location, making sure that it starts in bounds of the attack range.
+		*/
+		var temp_attack_center = player_location;
+		temp_attack_center[1] += attack_range[0]; //shifts the y up by the minimum of the range
+		return temp_attack_center;
 	}
 
 	rotateLeft(matrix) {
 		/*
 		rotates a 2d array (attack pattern) once to the left.
-		*/
-		
+		*/		
 		var temp_matrix = [[0,0,0],[0,0,0],[0,0,0]];
 		let n = temp_matrix.length - 1;
 		//rotate once to the left.
@@ -347,10 +358,16 @@ class Combat {
 		return temp_matrix				
 	}
 
-	drawController(enemy_locations, include_attack = false, temp_pattern, attack_center, include_enemies = true, include_player = true) {
+	drawController(player_location, enemy_locations, include_attack = false, temp_pattern, attack_center, attack_range, include_enemies = true, include_player = true) {
 		/*
 		Handles drawing all the stuff for the tactical field.
 		*/
+		//Clear the canvas
+		bf_ctx.clearRect(0,0,bf_canvas.width,bf_canvas.height);
+
+		if (include_attack) {
+			this.drawAttackRange(player_location, attack_range, this.checkDistance);
+		};
 		this.drawCharacters(include_enemies, include_player);
 		this.drawGrid();
 		if (include_attack) {
@@ -365,9 +382,6 @@ class Combat {
 		*/
 		
 		//Now, we draw the enemies
-
-		//Clear the canvas
-		bf_ctx.clearRect(0,0,bf_canvas.width,bf_canvas.height);
 		if (include_enemies) {
 			for (var i in this.enemy_locations) {
 				let temp_tuple = this.enemy_locations[i];
@@ -398,13 +412,14 @@ class Combat {
 	}
 
 	drawAttack(temp_pattern, attack_center) {	
-
+		/*
+		Draws the yellow squares and damage multiplier labels for the attack.
+		*/
 		let n = temp_pattern.length-1;
 
 		//now we draw
 		bf_ctx.font = "20px Arial";
 		bf_ctx.textAlign = "center";
-
 		for (var i = 0; i <= n; i++) {
 			for (var j = 0; j <= n; j++) {
 				if (!(temp_pattern[i][j] == 0)) {
@@ -417,6 +432,24 @@ class Combat {
 
 	}
 	
+	drawAttackRange(player_location, attack_range, checkDistance) {
+		/*
+		Draws the background indicators to show the range of the players attack.
+		*/
+
+		var m = attack_range[0];
+		var n = attack_range[1];
+
+		for (var i = -n; i <= n; i++) {
+			for (var j = -n+Math.abs(i); j<= n-Math.abs(i); j++) {
+				if (checkDistance(player_location,attack_range,[player_location[0]-i,player_location[1]-j])) {
+					rect((player_location[0]+i)*50,(player_location[1]+j)*50,50,50,"blue",bf_ctx);
+				};
+			};
+		};
+
+	}
+
 	drawLabels(enemy_locations) {
 		/*
 		Draws the labels for the enemies so the player can identify them.
@@ -484,7 +517,7 @@ class Combat {
 		/*
 		Swaps the gurrent gameplay mode that is occuring. If it is currently tactical, switches to rhythmical, and vice versa.
 		*/
-		this.drawController(this.enemy_locations);
+		this.drawController(this.player_location, this.enemy_locations);
 
 		if (this.is_rhythmic) {
 			//Swap to tactical

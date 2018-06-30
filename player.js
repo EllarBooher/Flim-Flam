@@ -326,7 +326,7 @@ class Player
 		Index refers to the index in the inventory
 		*/
 
-		if (this.inventory[category].length < index) {
+		if (this.inventory[category] === undefined || this.inventory[category].length < index) {
 			print("You don't have that.");
 			return
 		};

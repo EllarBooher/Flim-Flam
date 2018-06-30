@@ -29,7 +29,7 @@ const ATTACK_DICT = {
 	4: {
 		'name': "area strike",
 		'damage': 1,
-		'range': [1,2],
+		'range': [3,4],
 		'pattern': [[.6,1,.6],[1,1.2,1],[.6,1,.6]],
 		'movement_multiplier': .5,
 		'choose_direction': false,
