@@ -21,10 +21,11 @@
 	}
 	#top {
 		flex: 8;
+		max-height: 80%
 	}
 	#top > div {
 		white-space: pre-line;
-		height: 100%;
+		max-height: 100%;
 		margin: 0px;
 		min-width: 250px;
 		font-size: 16px;
@@ -393,9 +394,9 @@
 			if (ENEMY_REFERENCE[fusedText] in room.enemies) {
 				let enemy = ENEMY_DICT[ENEMY_REFERENCE[fusedText]];
 				print(enemy.description+`
-				Health: `+enemy.health +` 
-				Attack: `+enemy.attack +` 
-				Defense: `+enemy.defense +` 
+				Health: `+enemy.stats.health +` 
+				Attack: `+enemy.stats.attack +` 
+				Defense: `+enemy.stats.defense +` 
 				Experience: `+enemy.experience);
 			//refers to the enemy dict for the enemy description
 			}
